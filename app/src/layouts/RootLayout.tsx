@@ -3,6 +3,11 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import { appDb } from '../db/appDb'
 
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>
+}
+
 function TabLink(props: { to: string; label: string }) {
   return (
     <NavLink
@@ -25,6 +30,12 @@ function GlobalPwaNotices() {
     updateServiceWorker,
   } = useRegisterSW()
   const [isOnline, setIsOnline] = useState<boolean>(() => navigator.onLine)
+  const [deferredInstallPrompt, setDeferredInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null)
+  const [isStandalone, setIsStandalone] = useState<boolean>(() => {
+    const mm = window.matchMedia?.('(display-mode: standalone)')
+    const iosStandalone = Boolean((navigator as unknown as { standalone?: boolean }).standalone)
+    return Boolean(mm?.matches) || iosStandalone
+  })
 
   useEffect(() => {
     const onOnline = () => setIsOnline(true)
@@ -37,21 +48,65 @@ function GlobalPwaNotices() {
     }
   }, [])
 
+  useEffect(() => {
+    const onBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault()
+      setDeferredInstallPrompt(e as BeforeInstallPromptEvent)
+    }
+
+    const onAppInstalled = () => {
+      setDeferredInstallPrompt(null)
+      setIsStandalone(true)
+    }
+
+    const mm = window.matchMedia?.('(display-mode: standalone)')
+    const onMmChange = () => {
+      setIsStandalone(Boolean(mm?.matches))
+    }
+
+    window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt)
+    window.addEventListener('appinstalled', onAppInstalled)
+    mm?.addEventListener?.('change', onMmChange)
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt)
+      window.removeEventListener('appinstalled', onAppInstalled)
+      mm?.removeEventListener?.('change', onMmChange)
+    }
+  }, [])
+
   const showUpdate = needRefresh
   const showOffline = !isOnline
+  const showInstall = Boolean(deferredInstallPrompt) && !isStandalone
 
   const message = useMemo(() => {
     if (showUpdate) return '发现新版本，刷新即可更新。'
     if (showOffline) return '当前离线：在线搜索不可用，可浏览本地记录/缓存。'
+    if (showInstall) return '可安装到桌面/主屏幕，离线也能打开。'
     return ''
-  }, [showOffline, showUpdate])
+  }, [showInstall, showOffline, showUpdate])
 
-  if (!showUpdate && !showOffline) return null
+  if (!showUpdate && !showOffline && !showInstall) return null
 
   return (
     <div className="fixed left-0 right-0 top-0 z-50">
       <div className="mx-auto flex max-w-md items-center gap-2 border-b border-slate-200 bg-white px-3 py-2 text-xs text-slate-800">
         <div className="flex-1">{message}</div>
+        {showInstall ? (
+          <button
+            type="button"
+            className="rounded-md bg-slate-900 px-2 py-1 font-medium text-white"
+            onClick={async () => {
+              const p = deferredInstallPrompt
+              if (!p) return
+              await p.prompt()
+              await p.userChoice
+              setDeferredInstallPrompt(null)
+            }}
+          >
+            安装
+          </button>
+        ) : null}
         {showUpdate ? (
           <button
             type="button"
