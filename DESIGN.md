@@ -85,6 +85,8 @@ AnimeTimeRecorder 是一个**离线优先**的动画/追番记录工具，定位
 - `cache_detail_ttl_days`: number
   - `1/7/30` 等：缓存有效期
   - `0`：永不过期（禁用自动刷新）
+- `ui_bg_image_dataurl`: string
+  - 自定义背景图（data URL），为空表示使用默认背景
 
 ---
 
@@ -154,7 +156,25 @@ AnimeTimeRecorder 是一个**离线优先**的动画/追番记录工具，定位
 
 ---
 
-## 7. 导入导出设计
+## 7. UX 约束与安全策略
+
+### 7.1 危险操作二次确认
+- 任何会导致本地数据被覆盖/删除/大规模变更的操作（例如导入覆盖、清空本地数据、清理缓存等）
+- 统一通过浏览器 `confirm()` 进行二次确认
+
+### 7.2 评分输入控件
+- 评分范围：0-10，0.5 步进
+- `0` 表示“不评分”
+- UI 使用下拉选择，减少误输入
+
+### 7.3 背景图
+- 默认背景：`/Kirigiri.png`
+- 自定义背景图来自 `appSettings.ui_bg_image_dataurl`
+- 展示层为全局铺底，使用低透明度避免影响可读性
+
+---
+
+## 8. 导入导出设计
 
 ### 7.1 JSON
 - 完整备份：entries/animeCache/subjectExtras/appSettings
@@ -165,7 +185,7 @@ AnimeTimeRecorder 是一个**离线优先**的动画/追番记录工具，定位
 
 ---
 
-## 8. PWA 设计
+## 9. PWA 设计
 
 ### 8.1 Service Worker
 - `vite-plugin-pwa`：GenerateSW
@@ -182,13 +202,13 @@ AnimeTimeRecorder 是一个**离线优先**的动画/追番记录工具，定位
 
 ---
 
-## 9. 风险与限制
+## 10. 风险与限制
 - 浏览器存储空间受限：封面 Blob 占用可能较大，需提供清理入口（已实现“只清封面”等）
 - 纯前端应用无法保证多端同步一致性：需依赖导入导出迁移
 
 ---
 
-## 10. 部署设计（推荐）
+## 11. 部署设计（推荐）
 
 ### 10.1 Cloudflare Pages
 - Root directory: `app`

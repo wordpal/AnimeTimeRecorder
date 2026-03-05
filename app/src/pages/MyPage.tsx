@@ -117,13 +117,6 @@ export default function MyPage() {
     void refresh()
   }, [refresh])
 
-  const clearAll = useCallback(async () => {
-    await appDb.entries.clear()
-    await appDb.animeCache.clear()
-    await appDb.subjectExtras.clear()
-    await refresh()
-  }, [refresh])
-
   const exitBatchMode = useCallback(() => {
     setBatchMode(false)
     setSelectedIds([])
@@ -269,19 +262,11 @@ export default function MyPage() {
         </select>
 
         <input
-          className="min-w-[10rem] flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
+          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
-          placeholder="筛选：标题/声优/公司/角色…"
+          placeholder="搜索（支持标题/简介/人物/角色/声优）"
         />
-
-        <button
-          className="ml-auto rounded-md bg-slate-200 px-3 py-2 text-sm font-medium text-slate-900"
-          onClick={() => void clearAll()}
-          type="button"
-        >
-          清空本地数据
-        </button>
       </div>
 
       <div className="mt-2 text-xs text-slate-600">当前显示：{filtered.length}</div>

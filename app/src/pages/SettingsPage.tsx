@@ -19,13 +19,33 @@ export default function SettingsPage() {
 
   const [detailCacheTtlDays, setDetailCacheTtlDays] = useState<number>(7)
 
+  const [bgPreview, setBgPreview] = useState<string>('')
+
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const bgFileInputRef = useRef<HTMLInputElement | null>(null)
 
   const nowStr = useMemo(() => {
     const d = new Date()
     const pad = (n: number) => String(n).padStart(2, '0')
     return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`
   }, [])
+
+  const confirmAction = useCallback((msg: string) => {
+    return confirm(msg)
+  }, [])
+
+  const loadBackgroundSettings = useCallback(async () => {
+    try {
+      const rec = await appDb.appSettings.get('ui_bg_image_dataurl')
+      setBgPreview(typeof rec?.value === 'string' ? rec.value : '')
+    } catch {
+      setBgPreview('')
+    }
+  }, [])
+
+  useMemo(() => {
+    void loadBackgroundSettings()
+  }, [loadBackgroundSettings])
 
   const loadCacheSettings = useCallback(async () => {
     try {
@@ -88,6 +108,7 @@ export default function SettingsPage() {
   }, [nowStr])
 
   const onPickImport = useCallback(() => {
+    if (!confirmAction('确认导入 JSON 备份？\n\n导入会覆盖当前本地数据（记录/缓存/设置）。建议先导出一份 JSON 备份。')) return
     fileInputRef.current?.click()
   }, [])
 
@@ -111,6 +132,7 @@ export default function SettingsPage() {
   }, [])
 
   const clearAll = useCallback(async () => {
+    if (!confirmAction('确认清空本地数据？\n\n将删除：记录、缓存、人物/角色缓存、设置。此操作不可撤销。')) return
     setBusy(true)
     setError('')
     setMessage('')
@@ -128,6 +150,7 @@ export default function SettingsPage() {
   }, [])
 
   const clearCacheOnly = useCallback(async () => {
+    if (!confirmAction('确认清理缓存（保留记录）？\n\n将删除：条目缓存、人物/角色缓存。记录不会删除。')) return
     setBusy(true)
     setError('')
     setMessage('')
@@ -143,6 +166,7 @@ export default function SettingsPage() {
   }, [])
 
   const clearCoversOnly = useCallback(async () => {
+    if (!confirmAction('确认仅清理封面缓存？\n\n将删除所有条目的封面离线缓存。')) return
     setBusy(true)
     setError('')
     setMessage('')
@@ -159,6 +183,7 @@ export default function SettingsPage() {
   }, [])
 
   const clearDetailFieldsOnly = useCallback(async () => {
+    if (!confirmAction('确认仅清理条目详情缓存（保留封面）？\n\n将删除简介/平台/评分等详情字段缓存，并在下次打开条目时重新补全。')) return
     setBusy(true)
     setError('')
     setMessage('')
@@ -184,6 +209,7 @@ export default function SettingsPage() {
   }, [])
 
   const clearExtrasOnly = useCallback(async () => {
+    if (!confirmAction('确认仅清理人物/角色缓存？\n\n将删除制作人员/角色/声优等缓存，下次打开条目时需联网重新补全。')) return
     setBusy(true)
     setError('')
     setMessage('')
@@ -198,6 +224,7 @@ export default function SettingsPage() {
   }, [])
 
   const clearSearchHistory = useCallback(async () => {
+    if (!confirmAction('确认清空搜索历史？')) return
     setError('')
     setMessage('')
     try {
@@ -207,6 +234,49 @@ export default function SettingsPage() {
       setError(e instanceof Error ? e.message : String(e))
     }
   }, [])
+
+  const onPickBackground = useCallback(() => {
+    bgFileInputRef.current?.click()
+  }, [])
+
+  const onBackgroundSelected = useCallback(async (file: File | null) => {
+    if (!file) return
+    setBusy(true)
+    setError('')
+    setMessage('')
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const fr = new FileReader()
+        fr.onerror = () => reject(new Error('读取图片失败'))
+        fr.onload = () => resolve(String(fr.result || ''))
+        fr.readAsDataURL(file)
+      })
+      await appDb.appSettings.put({ key: 'ui_bg_image_dataurl', value: dataUrl })
+      setBgPreview(dataUrl)
+      setMessage('已保存背景图')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+      if (bgFileInputRef.current) bgFileInputRef.current.value = ''
+    }
+  }, [])
+
+  const clearBackground = useCallback(async () => {
+    if (!confirmAction('确认清除背景图并恢复默认纯白？')) return
+    setBusy(true)
+    setError('')
+    setMessage('')
+    try {
+      await appDb.appSettings.put({ key: 'ui_bg_image_dataurl', value: '' })
+      setBgPreview('')
+      setMessage('已清除背景图')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }, [confirmAction])
 
   return (
     <div className="px-4 py-3">
@@ -240,6 +310,32 @@ export default function SettingsPage() {
             </button>
           </div>
           <div className="text-xs text-slate-500">提示：设置会同步到导入/导出的 JSON 备份中。</div>
+        </div>
+      </div>
+
+      <div className="mt-5">
+        <div className="text-sm font-semibold text-slate-900">外观</div>
+        <div className="mt-2 grid gap-2">
+          <div className="text-sm text-slate-700">自定义背景图（会轻微透明显示，默认纯白）</div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="rounded-md bg-slate-200 px-3 py-2 text-sm font-medium text-slate-900 disabled:opacity-50"
+              onClick={() => void onPickBackground()}
+              disabled={busy}
+            >
+              导入背景图
+            </button>
+            <button
+              type="button"
+              className="rounded-md bg-slate-200 px-3 py-2 text-sm font-medium text-slate-900 disabled:opacity-50"
+              onClick={() => void clearBackground()}
+              disabled={busy || !bgPreview}
+            >
+              清除背景图
+            </button>
+          </div>
+          {bgPreview ? <div className="text-xs text-slate-500">已设置背景图（应用刷新后生效）</div> : null}
         </div>
       </div>
 
@@ -332,6 +428,14 @@ export default function SettingsPage() {
         accept="application/json"
         className="hidden"
         onChange={(e) => void onImportSelected(e.target.files?.[0] ?? null)}
+      />
+
+      <input
+        ref={bgFileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => void onBackgroundSelected(e.target.files?.[0] ?? null)}
       />
 
       {message ? <div className="mt-3 text-sm text-emerald-700">{message}</div> : null}

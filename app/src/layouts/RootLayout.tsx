@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useRegisterSW } from 'virtual:pwa-register/react'
+import { appDb } from '../db/appDb'
 
 function TabLink(props: { to: string; label: string }) {
   return (
@@ -66,8 +67,33 @@ function GlobalPwaNotices() {
 }
 
 export default function RootLayout() {
+  const [bgDataUrl, setBgDataUrl] = useState<string>('')
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const rec = await appDb.appSettings.get('ui_bg_image_dataurl')
+        const v = typeof rec?.value === 'string' ? rec.value : ''
+        if (!cancelled) setBgDataUrl(v)
+      } catch {
+        if (!cancelled) setBgDataUrl('')
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const effectiveBg = bgDataUrl || '/Kirigiri.png'
+
   return (
     <div className="min-h-dvh bg-white text-slate-900">
+      <div
+        className="pointer-events-none fixed inset-0 z-0 bg-cover bg-center"
+        style={{ backgroundImage: `url(${effectiveBg})`, opacity: 0.18 }}
+      />
+      <div className="relative z-10">
       <GlobalPwaNotices />
       <div className="mx-auto min-h-dvh max-w-md pb-16 pt-9">
         <Outlet />
@@ -80,6 +106,7 @@ export default function RootLayout() {
           <TabLink to="/settings" label="设置" />
         </div>
       </nav>
+      </div>
     </div>
   )
 }
